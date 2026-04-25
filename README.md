@@ -1,5 +1,10 @@
 # Auto Version Bump Action
 
+[![CI](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/jfrz38/auto-version-bump-action?display_name=tag)](https://github.com/jfrz38/auto-version-bump-action/releases)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-check--version--change-blue?logo=githubactions)](https://github.com/marketplace/actions/auto-version-bump-action)
+[![License](https://img.shields.io/github/license/jfrz38/auto-version-bump-action)](LICENSE)
+
 Reusable GitHub Action that bumps a simple SemVer version, commits the change to a bump branch, pushes it, and opens a draft pull request.
 
 It is designed for release-preparation workflows where a maintainer reviews and merges the version bump before a separate release workflow creates tags, GitHub Releases, or publishes artifacts.
