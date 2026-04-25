@@ -1,0 +1,81 @@
+name: 'version-bump-action'
+description: 'Bump a SemVer project version, push a branch, and open a draft pull request.'
+author: 'jfrz38'
+
+inputs:
+  bump:
+    description: 'Version component to bump: patch, minor, or major'
+    required: true
+  strategy:
+    description: 'Version file strategy: gradle-kts, npm, or regex'
+    required: true
+  version-file:
+    description: 'Path to the file that contains the version'
+    required: true
+  version-pattern:
+    description: 'Regex with exactly one capture group for strategy=regex'
+    required: false
+  version-replacement:
+    description: 'Replacement template for strategy=regex. Use {version} for the next version.'
+    required: false
+  base-branch:
+    description: 'Base branch for the pull request. Defaults to the current checkout branch or repository default branch.'
+    required: false
+  branch-prefix:
+    description: 'Prefix for the bump branch name'
+    required: false
+    default: 'chore/bump-version-'
+  tag-prefix:
+    description: 'Prefix used when checking whether the target version tag or release already exists'
+    required: false
+    default: 'v'
+  draft:
+    description: 'Create the pull request as a draft'
+    required: false
+    default: 'true'
+  github-token:
+    description: 'GitHub token used for tag/release checks and pull request creation'
+    required: false
+    default: ${{ github.token }}
+  commit-message:
+    description: 'Commit message template. Supports {version}, {current-version}, {next-version}, and {bump}.'
+    required: false
+    default: 'Bump version to {version}'
+  pr-title:
+    description: 'Pull request title template. Supports {version}, {current-version}, {next-version}, and {bump}.'
+    required: false
+    default: 'Bump version to {version}'
+  pr-body:
+    description: 'Pull request body template. Supports {version}, {current-version}, {next-version}, and {bump}.'
+    required: false
+    default: 'Bumps version from {current-version} to {next-version} using a {bump} release bump.'
+  fail-if-tag-exists:
+    description: 'Fail if the tag for the next version already exists'
+    required: false
+    default: 'true'
+  fail-if-release-exists:
+    description: 'Fail if the GitHub Release for the next version already exists'
+    required: false
+    default: 'true'
+
+outputs:
+  current-version:
+    description: 'Version read before applying the bump'
+  next-version:
+    description: 'Version written by the action'
+  tag:
+    description: 'Tag name associated with the next version'
+  branch:
+    description: 'Branch pushed by the action'
+  pr-url:
+    description: 'Created or reused pull request URL'
+  changed-files:
+    description: 'Newline-separated list of files changed by the version bump'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+branding:
+  icon: 'git-pull-request'
+  color: 'blue'

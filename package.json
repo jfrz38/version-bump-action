@@ -1,0 +1,56 @@
+{
+  "name": "version-bump-action",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GitHub Action that bumps SemVer project versions and opens a pull request.",
+  "license": "MIT",
+  "author": {
+    "name": "Jose F. Ruiz",
+    "url": "https://github.com/jfrz38"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jfrz38/version-bump-action.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jfrz38/version-bump-action/issues"
+  },
+  "homepage": "https://github.com/jfrz38/version-bump-action#readme",
+  "keywords": [
+    "github-action",
+    "github-actions",
+    "version-bump",
+    "semver",
+    "pull-request",
+    "gradle",
+    "npm"
+  ],
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "esbuild ./src/main.ts --bundle --platform=node --target=node20 --format=cjs --minify --outfile=dist/index.js",
+    "lint": "eslint .",
+    "package": "npm run build",
+    "test": "vitest run tests/unit",
+    "typecheck": "tsc --noEmit",
+    "validate": "npm run typecheck && npm test && npm run build"
+  },
+  "dependencies": {
+    "@actions/core": "^1.11.1",
+    "@actions/exec": "^1.1.1",
+    "@actions/github": "^6.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "^4.0.13",
+    "esbuild": "^0.27.0",
+    "eslint": "^9.39.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.4",
+    "vitest": "^4.0.13"
+  }
+}

@@ -80,8 +80,11 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 .output
+
+# GitHub Actions Node packages must commit the bundled dist entrypoint.
+!dist/
+!dist/index.js
 
 # Gatsby files
 .cache/
