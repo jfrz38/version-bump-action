@@ -1,38 +1,38 @@
 .DEFAULT_GOAL := help
 
-NPM ?= npm
+PNPM ?= pnpm
 
 .PHONY: help
 help: ## show make targets
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {sub("\\n",sprintf("\n%22c"," "), $$2);printf " \033[36m%-20s\033[0m  %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: install
-install: ## install dependencies from package-lock.json
-	$(NPM) ci
+install: ## install dependencies from pnpm-lock.yaml
+	$(PNPM) install --frozen-lockfile
 
 .PHONY: build
 build: ## build the bundled GitHub Action into dist/index.js
-	$(NPM) run build
+	$(PNPM) run build
 
 .PHONY: lint
 lint: ## run ESLint
-	$(NPM) run lint
+	$(PNPM) run lint
 
 .PHONY: test
 test: ## run unit tests
-	$(NPM) test
+	$(PNPM) test
 
 .PHONY: typecheck
 typecheck: ## run TypeScript type checks
-	$(NPM) run typecheck
+	$(PNPM) run typecheck
 
 .PHONY: package
 package: ## build the distributable action package
-	$(NPM) run package
+	$(PNPM) run package
 
 .PHONY: validate
 validate: ## run typecheck, tests, and build
-	$(NPM) run validate
+	$(PNPM) run validate
 
 .PHONY: check
 check: lint validate ## run all local checks used before release
