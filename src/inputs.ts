@@ -1,0 +1,39 @@
+import * as core from '@actions/core';
+
+export interface ActionInputs {
+  baseBranch: string;
+  branchPrefix: string;
+  bump: string;
+  commitMessage: string;
+  draft: string;
+  failIfReleaseExists: string;
+  failIfTagExists: string;
+  githubToken: string;
+  prBody: string;
+  prTitle: string;
+  strategy: string;
+  tagPrefix: string;
+  versionFile: string;
+  versionPattern: string;
+  versionReplacement: string;
+}
+
+export function readInputs(): ActionInputs {
+  return {
+    baseBranch: core.getInput('base-branch'),
+    branchPrefix: core.getInput('branch-prefix'),
+    bump: core.getInput('bump', { required: true }),
+    commitMessage: core.getInput('commit-message'),
+    draft: core.getInput('draft'),
+    failIfReleaseExists: core.getInput('fail-if-release-exists'),
+    failIfTagExists: core.getInput('fail-if-tag-exists'),
+    githubToken: core.getInput('github-token'),
+    prBody: core.getInput('pr-body'),
+    prTitle: core.getInput('pr-title'),
+    strategy: core.getInput('strategy', { required: true }),
+    tagPrefix: core.getInput('tag-prefix'),
+    versionFile: core.getInput('version-file', { required: true }),
+    versionPattern: core.getInput('version-pattern'),
+    versionReplacement: core.getInput('version-replacement'),
+  };
+}
