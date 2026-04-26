@@ -7,6 +7,10 @@ export class Branch {
     }
   }
 
+  static fromName(name: string): Branch {
+    return new Branch(name);
+  }
+
   static forVersion(prefix: string, version: SimpleVersion): Branch {
     return new Branch(`${prefix}${version.toString()}`);
   }

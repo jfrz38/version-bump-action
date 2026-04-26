@@ -3,6 +3,13 @@ import { Branch } from '../../../src/domain/branch';
 import { SimpleVersion } from '../../../src/domain/simple-version';
 
 describe('Branch', () => {
+  it('builds branch names from existing branch names', () => {
+    const branch = Branch.fromName('main');
+
+    expect(branch.name).toBe('main');
+    expect(branch.toString()).toBe('main');
+  });
+
   it('builds version bump branch names', () => {
     const branch = Branch.forVersion('chore/bump-version-', SimpleVersion.parse('1.2.4'));
 

@@ -50,11 +50,12 @@ async function executeVersionBumpPr(
   const nextVersionText = nextVersion.toString();
   const branch = Branch.forVersion(config.branchPrefix, nextVersion);
   const tag = Tag.forVersion(config.tagPrefix, nextVersion);
-  const baseBranch = config.baseBranch || getDefaultBranch();
+  const baseBranchName = config.baseBranch || getDefaultBranch();
 
-  if (!baseBranch) {
+  if (!baseBranchName) {
     throw new Error('Could not resolve base branch. Provide input "base-branch".');
   }
+  const baseBranch = Branch.fromName(baseBranchName);
 
   if (config.failIfTagExists) {
     await assertTagDoesNotExist(octokit, tag.name);
@@ -63,7 +64,7 @@ async function executeVersionBumpPr(
     await assertReleaseDoesNotExist(octokit, tag.name);
   }
 
-  const existingPullRequest = await findOpenPullRequest(octokit, baseBranch, branch.name);
+  const existingPullRequest = await findOpenPullRequest(octokit, baseBranch.name, branch.name);
   if (existingPullRequest) {
     return {
       branch: branch.name,
@@ -78,12 +79,12 @@ async function executeVersionBumpPr(
   const remoteBranchSha = await getRemoteBranchSha(branch.name);
   branch.assertCanUseRemoteState(remoteBranchSha, config.overwriteExistingBranch);
 
-  await checkoutBumpBranch(baseBranch, branch.name);
+  await checkoutBumpBranch(baseBranch.name, branch.name);
 
   const strategy = createStrategy(cwd, config);
   const branchCurrentVersion = SimpleVersion.parse(await strategy.readCurrentVersion()).toString();
   if (branchCurrentVersion !== currentVersionText) {
-    throw new Error(`Version changed after checking out ${baseBranch}: expected ${currentVersionText}, found ${branchCurrentVersion}.`);
+    throw new Error(`Version changed after checking out ${baseBranch.name}: expected ${currentVersionText}, found ${branchCurrentVersion}.`);
   }
 
   const beforeContents = await snapshotFiles(cwd, potentialChangedFiles(config.versionFile));
@@ -107,8 +108,8 @@ async function executeVersionBumpPr(
 
   await commitAndPush(branch.name, changedAfterWrite, commit.message, remoteBranchSha);
   const pullRequest = await createPullRequest(octokit, {
-    baseBranch: pullRequestRequest.baseBranch,
-    branch: pullRequestRequest.branch.name,
+    baseBranch: pullRequestRequest.baseBranch.name,
+    branch: pullRequestRequest.headBranch.name,
     draft: pullRequestRequest.draft,
     githubToken: config.githubToken,
     prBody: pullRequestRequest.body,
