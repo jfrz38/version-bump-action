@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ActionConfig } from '../../src/domain/action-config';
+import { Branch } from '../../src/domain/branch';
 import { BooleanInput } from '../../src/domain/boolean-input';
 import { Bump } from '../../src/domain/bump';
 import { SimpleVersion } from '../../src/domain/simple-version';
@@ -27,6 +28,23 @@ describe('domain value objects', () => {
   it('bumps simple versions', () => {
     expect(SimpleVersion.parse('1.2.3').bump('major').toString()).toBe('2.0.0');
     expect(() => SimpleVersion.parse('1.2.3-beta.1')).toThrow('Invalid SemVer');
+  });
+
+  it('builds version bump branch names', () => {
+    const branch = Branch.forVersion('chore/bump-version-', SimpleVersion.parse('1.2.4'));
+
+    expect(branch.name).toBe('chore/bump-version-1.2.4');
+    expect(branch.toString()).toBe('chore/bump-version-1.2.4');
+  });
+
+  it('guards existing remote branches unless overwriting is explicitly enabled', () => {
+    const branch = Branch.forVersion('chore/bump-version-', SimpleVersion.parse('1.2.4'));
+
+    expect(() => branch.assertCanUseRemoteState('abc123', false)).toThrow(
+      'Branch chore/bump-version-1.2.4 already exists on origin',
+    );
+    expect(() => branch.assertCanUseRemoteState('abc123', true)).not.toThrow();
+    expect(() => branch.assertCanUseRemoteState(undefined, false)).not.toThrow();
   });
 
   it('builds a validated action config from raw inputs', () => {
@@ -58,6 +76,7 @@ function baseInputs(): ActionInputs {
     failIfReleaseExists: '',
     failIfTagExists: '',
     githubToken: 'token',
+    overwriteExistingBranch: '',
     prBody: '',
     prTitle: '',
     strategy: 'gradle-kts',

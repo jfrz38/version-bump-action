@@ -1,10 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { type ActionConfig } from '../domain/action-config';
+import { Branch } from '../domain/branch';
 import { SimpleVersion } from '../domain/simple-version';
 import { type VersionStrategy } from '../domain/version-strategy';
 import { assertReleaseDoesNotExist, assertTagDoesNotExist, createGitHubClient, createPullRequest, findOpenPullRequest, getDefaultBranch } from '../github';
-import { assertRemoteBranchDoesNotExist, checkoutBumpBranch, commitAndPush } from '../git';
+import { checkoutBumpBranch, commitAndPush, getRemoteBranchSha } from '../git';
 import { toGitPath, uniqueValues } from '../path-utils';
 import { renderTemplate } from '../templates';
 
@@ -26,7 +27,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
   const nextVersion = currentVersion.bump(config.bump.value);
   const currentVersionText = currentVersion.toString();
   const nextVersionText = nextVersion.toString();
-  const branch = `${config.branchPrefix}${nextVersionText}`;
+  const branch = Branch.forVersion(config.branchPrefix, nextVersion);
   const tag = `${config.tagPrefix}${nextVersionText}`;
   const baseBranch = config.baseBranch || getDefaultBranch();
 
@@ -41,10 +42,10 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
     await assertReleaseDoesNotExist(octokit, tag);
   }
 
-  const existingPullRequest = await findOpenPullRequest(octokit, baseBranch, branch);
+  const existingPullRequest = await findOpenPullRequest(octokit, baseBranch, branch.name);
   if (existingPullRequest) {
     return {
-      branch,
+      branch: branch.name,
       changedFiles: '',
       currentVersion: currentVersionText,
       nextVersion: nextVersionText,
@@ -53,8 +54,10 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
     };
   }
 
-  await assertRemoteBranchDoesNotExist(branch);
-  await checkoutBumpBranch(baseBranch, branch);
+  const remoteBranchSha = await getRemoteBranchSha(branch.name);
+  branch.assertCanUseRemoteState(remoteBranchSha, config.overwriteExistingBranch);
+
+  await checkoutBumpBranch(baseBranch, branch.name);
 
   const strategy = createStrategy(cwd, config);
   const branchCurrentVersion = SimpleVersion.parse(await strategy.readCurrentVersion()).toString();
@@ -75,10 +78,10 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
   const prTitle = renderTemplate(config.prTitle, templateValues);
   const prBody = renderTemplate(config.prBody, templateValues);
 
-  await commitAndPush(branch, changedAfterWrite, commitMessage);
+  await commitAndPush(branch.name, changedAfterWrite, commitMessage, remoteBranchSha);
   const pullRequest = await createPullRequest(octokit, {
     baseBranch,
-    branch,
+    branch: branch.name,
     draft: config.draft,
     githubToken: config.githubToken,
     prBody,
@@ -87,7 +90,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
   });
 
   return {
-    branch,
+    branch: branch.name,
     changedFiles: changedAfterWrite.join('\n'),
     currentVersion: currentVersionText,
     nextVersion: nextVersionText,

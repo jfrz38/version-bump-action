@@ -12,6 +12,7 @@ export class ActionConfig {
   readonly failIfReleaseExists: boolean;
   readonly failIfTagExists: boolean;
   readonly githubToken: string;
+  readonly overwriteExistingBranch: boolean;
   readonly prBody: string;
   readonly prTitle: string;
   readonly strategy: StrategyName;
@@ -29,6 +30,7 @@ export class ActionConfig {
     this.failIfReleaseExists = BooleanInput.fromInput('fail-if-release-exists', inputs.failIfReleaseExists, true).value;
     this.failIfTagExists = BooleanInput.fromInput('fail-if-tag-exists', inputs.failIfTagExists, true).value;
     this.githubToken = inputs.githubToken;
+    this.overwriteExistingBranch = BooleanInput.fromInput('overwrite-existing-branch', inputs.overwriteExistingBranch, false).value;
     this.prBody = inputs.prBody || 'Bumps version from {current-version} to {next-version} using a {bump} release bump.';
     this.prTitle = inputs.prTitle || 'Bump version to {version}';
     this.strategy = StrategyName.fromInput(inputs.strategy);

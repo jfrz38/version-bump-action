@@ -86,6 +86,7 @@ describe('main action', () => {
         'pr-body': 'Bumps version from {current-version} to {next-version} using a {bump} release bump.',
         'fail-if-tag-exists': 'true',
         'fail-if-release-exists': 'true',
+        'overwrite-existing-branch': 'false',
       };
       return inputs[name] ?? '';
     });
@@ -144,12 +145,62 @@ describe('main action', () => {
     const { run } = await import('../../src/main');
 
     await expect(run()).rejects.toThrow(
-      'Branch chore/bump-version-1.2.4 already exists on origin, but no open pull request was found for it.',
+      'Branch chore/bump-version-1.2.4 already exists on origin, but no open pull request was found for it. Delete the branch, use a different branch-prefix, or set overwrite-existing-branch to true.',
     );
     expect(fs.readFileSync(path.join(tempDir, 'build.gradle.kts'), 'utf8')).toBe('version = "1.2.3"\n');
     expect(execMock.exec).not.toHaveBeenCalledWith('git', ['checkout', '-B', 'chore/bump-version-1.2.4', 'origin/develop']);
     expect(execMock.exec).not.toHaveBeenCalledWith('git', ['commit', '-m', expect.any(String)]);
     expect(execMock.exec).not.toHaveBeenCalledWith('git', expect.arrayContaining(['push']));
+  });
+
+  it('overwrites an existing remote bump branch with a lease when explicitly enabled', async () => {
+    coreMock.getInput.mockImplementation((name: string) => {
+      const inputs: Record<string, string> = {
+        bump: 'patch',
+        strategy: 'gradle-kts',
+        'version-file': 'build.gradle.kts',
+        'version-pattern': '',
+        'version-replacement': '',
+        'base-branch': 'develop',
+        'branch-prefix': 'chore/bump-version-',
+        'tag-prefix': 'v',
+        draft: 'true',
+        'github-token': 'token',
+        'commit-message': 'Bump version to {version}',
+        'pr-title': 'Bump version to {version}',
+        'pr-body': 'Bumps version from {current-version} to {next-version} using a {bump} release bump.',
+        'fail-if-tag-exists': 'true',
+        'fail-if-release-exists': 'true',
+        'overwrite-existing-branch': 'true',
+      };
+      return inputs[name] ?? '';
+    });
+    execMock.getExecOutput.mockImplementation((_command: string, args: string[]) => {
+      if (args[0] === 'status') {
+        return Promise.resolve({ stdout: ' M build.gradle.kts\n', stderr: '', exitCode: 0 });
+      }
+      if (args[0] === 'ls-remote') {
+        return Promise.resolve({
+          stdout: 'abc1234567890abcdef\trefs/heads/chore/bump-version-1.2.4\n',
+          stderr: '',
+          exitCode: 0,
+        });
+      }
+
+      return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
+    });
+
+    const { run } = await import('../../src/main');
+
+    await run();
+
+    expect(execMock.exec).toHaveBeenCalledWith('git', [
+      'push',
+      '--force-with-lease=refs/heads/chore/bump-version-1.2.4:abc1234567890abcdef',
+      '--set-upstream',
+      'origin',
+      'chore/bump-version-1.2.4',
+    ]);
   });
 
   it('returns an existing open pull request without creating a duplicate', async () => {
