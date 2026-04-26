@@ -1,9 +1,9 @@
 import * as core from '@actions/core';
 import { type ActionOutputs, VersionBumpPrUseCase } from './application/version-bump-pr-use-case';
+import { TemplateRenderer } from './application/template-renderer';
 import { ActionConfig } from './domain/action-config';
 import { createStrategy } from './infrastructure/strategies';
 import { readInputs } from './inputs';
-import { TemplateRenderer } from './templates';
 
 export async function run(): Promise<ActionOutputs> {
   const useCase = new VersionBumpPrUseCase({

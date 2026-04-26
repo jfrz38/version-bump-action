@@ -3,9 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { VersionBumpPrUseCase } from '../../../src/application/version-bump-pr-use-case';
+import { TemplateRenderer } from '../../../src/application/template-renderer';
 import { ActionConfig } from '../../../src/domain/action-config';
 import type { VersionStrategy } from '../../../src/domain/version-strategy';
-import { TemplateRenderer } from '../../../src/templates';
 import type { ActionInputs } from '../../../src/inputs';
 
 const execMock = vi.hoisted(() => ({
