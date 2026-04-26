@@ -1,6 +1,6 @@
 # Auto Version Bump Action
 
-[![CI](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/jfrz38/auto-version-bump-action/ci.yml)](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml)
 [![GitHub release](https://img.shields.io/github/v/release/jfrz38/auto-version-bump-action?display_name=tag)](https://github.com/jfrz38/auto-version-bump-action/releases)
 [![GitHub Marketplace](https://img.shields.io/badge/marketplace-check--version--change-blue?logo=githubactions)](https://github.com/marketplace/actions/auto-version-bump-action)
 [![License](https://img.shields.io/github/license/jfrz38/auto-version-bump-action)](LICENSE)
