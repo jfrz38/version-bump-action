@@ -5,6 +5,7 @@ import { BooleanInput } from '../../src/domain/boolean-input';
 import { Bump } from '../../src/domain/bump';
 import { SimpleVersion } from '../../src/domain/simple-version';
 import { StrategyName } from '../../src/domain/strategy-name';
+import { Tag } from '../../src/domain/tag';
 import type { ActionInputs } from '../../src/inputs';
 
 describe('domain value objects', () => {
@@ -35,6 +36,13 @@ describe('domain value objects', () => {
 
     expect(branch.name).toBe('chore/bump-version-1.2.4');
     expect(branch.toString()).toBe('chore/bump-version-1.2.4');
+  });
+
+  it('builds version tag names', () => {
+    const tag = Tag.forVersion('v', SimpleVersion.parse('1.2.4'));
+
+    expect(tag.name).toBe('v1.2.4');
+    expect(tag.toString()).toBe('v1.2.4');
   });
 
   it('guards existing remote branches unless overwriting is explicitly enabled', () => {

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { type ActionConfig } from '../domain/action-config';
 import { Branch } from '../domain/branch';
 import { SimpleVersion } from '../domain/simple-version';
+import { Tag } from '../domain/tag';
 import { type VersionStrategy } from '../domain/version-strategy';
 import { assertReleaseDoesNotExist, assertTagDoesNotExist, createGitHubClient, createPullRequest, findOpenPullRequest, getDefaultBranch } from '../github';
 import { checkoutBumpBranch, commitAndPush, getRemoteBranchSha } from '../git';
@@ -28,7 +29,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
   const currentVersionText = currentVersion.toString();
   const nextVersionText = nextVersion.toString();
   const branch = Branch.forVersion(config.branchPrefix, nextVersion);
-  const tag = `${config.tagPrefix}${nextVersionText}`;
+  const tag = Tag.forVersion(config.tagPrefix, nextVersion);
   const baseBranch = config.baseBranch || getDefaultBranch();
 
   if (!baseBranch) {
@@ -36,10 +37,10 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
   }
 
   if (config.failIfTagExists) {
-    await assertTagDoesNotExist(octokit, tag);
+    await assertTagDoesNotExist(octokit, tag.name);
   }
   if (config.failIfReleaseExists) {
-    await assertReleaseDoesNotExist(octokit, tag);
+    await assertReleaseDoesNotExist(octokit, tag.name);
   }
 
   const existingPullRequest = await findOpenPullRequest(octokit, baseBranch, branch.name);
@@ -50,7 +51,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
       currentVersion: currentVersionText,
       nextVersion: nextVersionText,
       prUrl: existingPullRequest.url,
-      tag,
+      tag: tag.name,
     };
   }
 
@@ -86,7 +87,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
     githubToken: config.githubToken,
     prBody,
     prTitle,
-    tag,
+    tag: tag.name,
   });
 
   return {
@@ -95,7 +96,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
     currentVersion: currentVersionText,
     nextVersion: nextVersionText,
     prUrl: pullRequest.url,
-    tag,
+    tag: tag.name,
   };
 }
 
