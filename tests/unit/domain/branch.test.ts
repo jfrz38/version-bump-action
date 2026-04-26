@@ -1,0 +1,22 @@
+import { describe, expect, it } from 'vitest';
+import { Branch } from '../../../src/domain/branch';
+import { SimpleVersion } from '../../../src/domain/simple-version';
+
+describe('Branch', () => {
+  it('builds version bump branch names', () => {
+    const branch = Branch.forVersion('chore/bump-version-', SimpleVersion.parse('1.2.4'));
+
+    expect(branch.name).toBe('chore/bump-version-1.2.4');
+    expect(branch.toString()).toBe('chore/bump-version-1.2.4');
+  });
+
+  it('guards existing remote branches unless overwriting is explicitly enabled', () => {
+    const branch = Branch.forVersion('chore/bump-version-', SimpleVersion.parse('1.2.4'));
+
+    expect(() => branch.assertCanUseRemoteState('abc123', false)).toThrow(
+      'Branch chore/bump-version-1.2.4 already exists on origin',
+    );
+    expect(() => branch.assertCanUseRemoteState('abc123', true)).not.toThrow();
+    expect(() => branch.assertCanUseRemoteState(undefined, false)).not.toThrow();
+  });
+});

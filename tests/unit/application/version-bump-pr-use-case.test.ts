@@ -2,12 +2,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-
-const coreMock = vi.hoisted(() => ({
-  getInput: vi.fn(),
-  setFailed: vi.fn(),
-  setOutput: vi.fn(),
-}));
+import { VersionBumpPrUseCase } from '../../../src/application/version-bump-pr-use-case';
+import { ActionConfig } from '../../../src/domain/action-config';
+import type { VersionStrategy } from '../../../src/domain/version-strategy';
+import { TemplateRenderer } from '../../../src/templates';
+import type { ActionInputs } from '../../../src/inputs';
 
 const execMock = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -26,13 +25,11 @@ const githubMock = vi.hoisted(() => ({
   getOctokit: vi.fn(),
 }));
 
-vi.mock('@actions/core', () => coreMock);
 vi.mock('@actions/exec', () => execMock);
 vi.mock('@actions/github', () => githubMock);
 
-describe('main action', () => {
+describe('VersionBumpPrUseCase', () => {
   let tempDir: string;
-  let cwdSpy: ReturnType<typeof vi.spyOn>;
   let octokit: {
     rest: {
       git: { getRef: ReturnType<typeof vi.fn> };
@@ -42,11 +39,8 @@ describe('main action', () => {
   };
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'version-bump-action-main-'));
-    cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(tempDir);
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'version-bump-action-use-case-'));
     fs.writeFileSync(path.join(tempDir, 'build.gradle.kts'), 'version = "1.2.3"\n');
-
-    vi.resetModules();
     vi.clearAllMocks();
 
     octokit = {
@@ -68,39 +62,14 @@ describe('main action', () => {
 
       return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
     });
-
-    coreMock.getInput.mockImplementation((name: string) => {
-      const inputs: Record<string, string> = {
-        bump: 'patch',
-        strategy: 'gradle-kts',
-        'version-file': 'build.gradle.kts',
-        'version-pattern': '',
-        'version-replacement': '',
-        'base-branch': 'develop',
-        'branch-prefix': 'chore/bump-version-',
-        'tag-prefix': 'v',
-        draft: 'true',
-        'github-token': 'token',
-        'commit-message': 'Bump version to {version}',
-        'pr-title': 'Bump version to {version}',
-        'pr-body': 'Bumps version from {current-version} to {next-version} using a {bump} release bump.',
-        'fail-if-tag-exists': 'true',
-        'fail-if-release-exists': 'true',
-        'overwrite-existing-branch': 'false',
-      };
-      return inputs[name] ?? '';
-    });
   });
 
   afterEach(() => {
-    cwdSpy.mockRestore();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   it('bumps the version, pushes a branch, and creates a draft pull request', async () => {
-    const { run } = await import('../../src/main');
-
-    const result = await run();
+    const result = await executeUseCase();
 
     expect(result).toMatchObject({
       currentVersion: '1.2.3',
@@ -123,7 +92,6 @@ describe('main action', () => {
         title: 'Bump version to 1.2.4',
       }),
     );
-    expect(coreMock.setOutput).toHaveBeenCalledWith('next-version', '1.2.4');
   });
 
   it('fails before changing files when the remote bump branch already exists without an open pull request', async () => {
@@ -142,9 +110,7 @@ describe('main action', () => {
       return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
     });
 
-    const { run } = await import('../../src/main');
-
-    await expect(run()).rejects.toThrow(
+    await expect(executeUseCase()).rejects.toThrow(
       'Branch chore/bump-version-1.2.4 already exists on origin, but no open pull request was found for it. Delete the branch, use a different branch-prefix, or set overwrite-existing-branch to true.',
     );
     expect(fs.readFileSync(path.join(tempDir, 'build.gradle.kts'), 'utf8')).toBe('version = "1.2.3"\n');
@@ -154,27 +120,6 @@ describe('main action', () => {
   });
 
   it('overwrites an existing remote bump branch with a lease when explicitly enabled', async () => {
-    coreMock.getInput.mockImplementation((name: string) => {
-      const inputs: Record<string, string> = {
-        bump: 'patch',
-        strategy: 'gradle-kts',
-        'version-file': 'build.gradle.kts',
-        'version-pattern': '',
-        'version-replacement': '',
-        'base-branch': 'develop',
-        'branch-prefix': 'chore/bump-version-',
-        'tag-prefix': 'v',
-        draft: 'true',
-        'github-token': 'token',
-        'commit-message': 'Bump version to {version}',
-        'pr-title': 'Bump version to {version}',
-        'pr-body': 'Bumps version from {current-version} to {next-version} using a {bump} release bump.',
-        'fail-if-tag-exists': 'true',
-        'fail-if-release-exists': 'true',
-        'overwrite-existing-branch': 'true',
-      };
-      return inputs[name] ?? '';
-    });
     execMock.getExecOutput.mockImplementation((_command: string, args: string[]) => {
       if (args[0] === 'status') {
         return Promise.resolve({ stdout: ' M build.gradle.kts\n', stderr: '', exitCode: 0 });
@@ -190,9 +135,7 @@ describe('main action', () => {
       return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
     });
 
-    const { run } = await import('../../src/main');
-
-    await run();
+    await executeUseCase({ overwriteExistingBranch: 'true' });
 
     expect(execMock.exec).toHaveBeenCalledWith('git', [
       'push',
@@ -205,9 +148,8 @@ describe('main action', () => {
 
   it('returns an existing open pull request without creating a duplicate', async () => {
     octokit.rest.pulls.list.mockResolvedValue({ data: [{ html_url: 'https://github.com/jfrz38/demo/pull/99' }] });
-    const { run } = await import('../../src/main');
 
-    const result = await run();
+    const result = await executeUseCase();
 
     expect(result.prUrl).toBe('https://github.com/jfrz38/demo/pull/99');
     expect(result.changedFiles).toBe('');
@@ -217,15 +159,67 @@ describe('main action', () => {
 
   it('fails when the tag already exists and the safeguard is enabled', async () => {
     octokit.rest.git.getRef.mockResolvedValue({ data: { ref: 'refs/tags/v1.2.4' } });
-    const { run } = await import('../../src/main');
 
-    await expect(run()).rejects.toThrow('Tag v1.2.4 already exists');
+    await expect(executeUseCase()).rejects.toThrow('Tag v1.2.4 already exists');
   });
 
   it('fails when the release already exists and the safeguard is enabled', async () => {
     octokit.rest.repos.getReleaseByTag.mockResolvedValue({ data: { tag_name: 'v1.2.4' } });
-    const { run } = await import('../../src/main');
 
-    await expect(run()).rejects.toThrow('GitHub Release v1.2.4 already exists');
+    await expect(executeUseCase()).rejects.toThrow('GitHub Release v1.2.4 already exists');
   });
+
+  async function executeUseCase(inputOverrides: Partial<ActionInputs> = {}) {
+    const useCase = new VersionBumpPrUseCase({
+      createStrategy: (cwd, config) => new TestVersionStrategy(cwd, config.versionFile),
+      renderer: new TemplateRenderer(),
+    });
+
+    return useCase.execute(new ActionConfig({ ...baseInputs(), ...inputOverrides }), tempDir);
+  }
 });
+
+class TestVersionStrategy implements VersionStrategy {
+  private readonly filePath: string;
+
+  constructor(cwd: string, versionFile: string) {
+    this.filePath = path.resolve(cwd, versionFile);
+  }
+
+  async readCurrentVersion(): Promise<string> {
+    const content = await fs.promises.readFile(this.filePath, 'utf8');
+    const match = /version = "(\d+\.\d+\.\d+)"/.exec(content);
+    if (!match) {
+      throw new Error('Version not found.');
+    }
+
+    return match[1];
+  }
+
+  async writeNextVersion(nextVersion: string): Promise<string[]> {
+    const content = await fs.promises.readFile(this.filePath, 'utf8');
+    await fs.promises.writeFile(this.filePath, content.replace(/version = "\d+\.\d+\.\d+"/, `version = "${nextVersion}"`), 'utf8');
+    return [this.filePath];
+  }
+}
+
+function baseInputs(): ActionInputs {
+  return {
+    baseBranch: 'develop',
+    branchPrefix: 'chore/bump-version-',
+    bump: 'patch',
+    commitMessage: 'Bump version to {version}',
+    draft: 'true',
+    failIfReleaseExists: 'true',
+    failIfTagExists: 'true',
+    githubToken: 'token',
+    overwriteExistingBranch: 'false',
+    prBody: 'Bumps version from {current-version} to {next-version} using a {bump} release bump.',
+    prTitle: 'Bump version to {version}',
+    strategy: 'gradle-kts',
+    tagPrefix: 'v',
+    versionFile: 'build.gradle.kts',
+    versionPattern: '',
+    versionReplacement: '',
+  };
+}
