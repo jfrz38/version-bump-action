@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GradleKtsStrategy } from '../../src/infrastructure/strategies/gradle-kts';
-import { NpmStrategy } from '../../src/infrastructure/strategies/npm';
-import { RegexStrategy } from '../../src/infrastructure/strategies/regex';
+import { GradleKtsStrategy } from '../../../src/infrastructure/strategies/gradle-kts';
+import { NpmStrategy } from '../../../src/infrastructure/strategies/npm';
+import { RegexStrategy } from '../../../src/infrastructure/strategies/regex';
 
 const execMock = vi.hoisted(() => ({
   exec: vi.fn(),
@@ -60,11 +60,9 @@ describe('version strategies', () => {
     const strategy = new NpmStrategy(tempDir, 'package.json');
     const changedFiles = await strategy.writeNextVersion('1.2.4');
 
-    expect(execMock.exec).toHaveBeenCalledWith(
-      'npm',
-      ['version', '1.2.4', '--no-git-tag-version', '--allow-same-version'],
-      { cwd: tempDir },
-    );
+    expect(execMock.exec).toHaveBeenCalledWith('npm', ['version', '1.2.4', '--no-git-tag-version', '--allow-same-version'], {
+      cwd: tempDir,
+    });
     expect(changedFiles).toEqual([path.join(tempDir, 'package.json'), path.join(tempDir, 'package-lock.json')]);
   });
 

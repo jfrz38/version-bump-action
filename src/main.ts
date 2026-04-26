@@ -1,10 +1,16 @@
 import * as core from '@actions/core';
-import { executeVersionBumpPr, type ActionOutputs } from './application/version-bump-pr-use-case';
+import { type ActionOutputs, VersionBumpPrUseCase } from './application/version-bump-pr-use-case';
+import { TemplateRenderer } from './application/template-renderer';
 import { ActionConfig } from './domain/action-config';
+import { createStrategy } from './infrastructure/strategies';
 import { readInputs } from './inputs';
 
 export async function run(): Promise<ActionOutputs> {
-  const outputs = await executeVersionBumpPr(new ActionConfig(readInputs()), process.cwd());
+  const useCase = new VersionBumpPrUseCase({
+    createStrategy,
+    renderer: new TemplateRenderer(),
+  });
+  const outputs = await useCase.execute(new ActionConfig(readInputs()), process.cwd());
   setOutputs(outputs);
   return outputs;
 }

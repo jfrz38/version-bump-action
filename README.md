@@ -77,6 +77,7 @@ This creates or reuses a branch such as `chore/bump-version-1.2.4`, commits the 
 | `tag-prefix` | No | `v` | Prefix used for tag/release existence checks. |
 | `draft` | No | `true` | Whether to create the pull request as a draft. |
 | `github-token` | No | `${{ github.token }}` | Token used for checks and PR creation. |
+| `overwrite-existing-branch` | No | `false` | Overwrite an existing bump branch when no open pull request is found for it. |
 | `commit-message` | No | `Bump version to {version}` | Commit message template. |
 | `pr-title` | No | `Bump version to {version}` | Pull request title template. |
 | `pr-body` | No | `Bumps version from {current-version} to {next-version} using a {bump} release bump.` | Pull request body template. |
@@ -88,6 +89,8 @@ Template inputs support:
 - `{version}` and `{next-version}`
 - `{current-version}`
 - `{bump}`
+
+If a bump branch already exists but there is no open pull request for it, the action fails by default so it does not overwrite remote work accidentally. Set `overwrite-existing-branch: true` to replace that generated bump branch using `git push --force-with-lease`.
 
 ## Outputs
 

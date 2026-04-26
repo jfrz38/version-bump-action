@@ -9,6 +9,7 @@ export interface ActionInputs {
   failIfReleaseExists: string;
   failIfTagExists: string;
   githubToken: string;
+  overwriteExistingBranch: string;
   prBody: string;
   prTitle: string;
   strategy: string;
@@ -28,6 +29,7 @@ export function readInputs(): ActionInputs {
     failIfReleaseExists: core.getInput('fail-if-release-exists'),
     failIfTagExists: core.getInput('fail-if-tag-exists'),
     githubToken: core.getInput('github-token'),
+    overwriteExistingBranch: core.getInput('overwrite-existing-branch'),
     prBody: core.getInput('pr-body'),
     prTitle: core.getInput('pr-title'),
     strategy: core.getInput('strategy', { required: true }),
