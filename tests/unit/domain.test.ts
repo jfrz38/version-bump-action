@@ -3,6 +3,8 @@ import { ActionConfig } from '../../src/domain/action-config';
 import { Branch } from '../../src/domain/branch';
 import { BooleanInput } from '../../src/domain/boolean-input';
 import { Bump } from '../../src/domain/bump';
+import { Commit } from '../../src/domain/commit';
+import { PullRequest } from '../../src/domain/pull-request';
 import { SimpleVersion } from '../../src/domain/simple-version';
 import { StrategyName } from '../../src/domain/strategy-name';
 import { Tag } from '../../src/domain/tag';
@@ -53,6 +55,32 @@ describe('domain value objects', () => {
     );
     expect(() => branch.assertCanUseRemoteState('abc123', true)).not.toThrow();
     expect(() => branch.assertCanUseRemoteState(undefined, false)).not.toThrow();
+  });
+
+  it('builds commits from rendered messages', () => {
+    const commit = Commit.create('Bump version to 1.2.4');
+
+    expect(commit.message).toBe('Bump version to 1.2.4');
+  });
+
+  it('builds pull requests from rendered content', () => {
+    const branch = Branch.forVersion('chore/bump-version-', SimpleVersion.parse('1.2.4'));
+    const tag = Tag.forVersion('v', SimpleVersion.parse('1.2.4'));
+    const pullRequest = PullRequest.create(
+      'main',
+      branch,
+      true,
+      'Bump version to 1.2.4',
+      'Bumps version from 1.2.3 to 1.2.4 using a patch release bump.',
+      tag,
+    );
+
+    expect(pullRequest.baseBranch).toBe('main');
+    expect(pullRequest.branch).toBe(branch);
+    expect(pullRequest.draft).toBe(true);
+    expect(pullRequest.title).toBe('Bump version to 1.2.4');
+    expect(pullRequest.body).toBe('Bumps version from 1.2.3 to 1.2.4 using a patch release bump.');
+    expect(pullRequest.tag).toBe(tag);
   });
 
   it('builds a validated action config from raw inputs', () => {
