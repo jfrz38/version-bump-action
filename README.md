@@ -1,8 +1,49 @@
-# version-bump-action
+# Auto Version Bump Action
+
+[![CI](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jfrz38/auto-version-bump-action/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/jfrz38/auto-version-bump-action?display_name=tag)](https://github.com/jfrz38/auto-version-bump-action/releases)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-check--version--change-blue?logo=githubactions)](https://github.com/marketplace/actions/auto-version-bump-action)
+[![License](https://img.shields.io/github/license/jfrz38/auto-version-bump-action)](LICENSE)
 
 Reusable GitHub Action that bumps a simple SemVer version, commits the change to a bump branch, pushes it, and opens a draft pull request.
 
 It is designed for release-preparation workflows where a maintainer reviews and merges the version bump before a separate release workflow creates tags, GitHub Releases, or publishes artifacts.
+
+## Quick start
+
+Use this action after `actions/checkout` and give the workflow permission to push a branch and open a pull request.
+
+```yaml
+name: Bump Version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        type: choice
+        required: true
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: jfrz38/auto-version-bump-action@v0
+        with:
+          bump: ${{ inputs.bump }}
+          strategy: npm
+          version-file: package.json
+```
+
+This creates or reuses a branch such as `chore/bump-version-1.2.4`, commits the version change, and opens a draft pull request.
 
 ## What it does
 
@@ -36,6 +77,7 @@ It is designed for release-preparation workflows where a maintainer reviews and 
 | `tag-prefix` | No | `v` | Prefix used for tag/release existence checks. |
 | `draft` | No | `true` | Whether to create the pull request as a draft. |
 | `github-token` | No | `${{ github.token }}` | Token used for checks and PR creation. |
+| `overwrite-existing-branch` | No | `false` | Overwrite an existing bump branch when no open pull request is found for it. |
 | `commit-message` | No | `Bump version to {version}` | Commit message template. |
 | `pr-title` | No | `Bump version to {version}` | Pull request title template. |
 | `pr-body` | No | `Bumps version from {current-version} to {next-version} using a {bump} release bump.` | Pull request body template. |
@@ -47,6 +89,8 @@ Template inputs support:
 - `{version}` and `{next-version}`
 - `{current-version}`
 - `{bump}`
+
+If a bump branch already exists but there is no open pull request for it, the action fails by default so it does not overwrite remote work accidentally. Set `overwrite-existing-branch: true` to replace that generated bump branch using `git push --force-with-lease`.
 
 ## Outputs
 
@@ -71,13 +115,44 @@ permissions:
 
 Use `actions/checkout` with the target base branch and `fetch-depth: 0`.
 
+## npm
+
+For `package.json`, the action reads and updates the `version` field.
+
+Without a `package-lock.json`, it writes the next version directly to `package.json`.
+
+If a same-directory `package-lock.json` exists, the action runs:
+
+```bash
+npm version <next-version> --no-git-tag-version --allow-same-version
+```
+
+Example:
+
+```yaml
+- uses: actions/checkout@v4
+  with:
+    ref: ${{ inputs.base_branch }}
+    fetch-depth: 0
+
+- id: bump
+  uses: jfrz38/auto-version-bump-action@v0
+  with:
+    bump: ${{ inputs.bump }}
+    base-branch: ${{ inputs.base_branch }}
+    strategy: npm
+    version-file: package.json
+```
+
 ## Gradle Kotlin DSL
 
-Supports files such as `build.gradle.kts` with one version assignment:
+For `gradle-kts`, the action updates exactly one Kotlin DSL version assignment in the configured file:
 
 ```kotlin
 version = "0.1.2"
 ```
+
+It fails if no matching assignment exists or if the file contains multiple matching version assignments.
 
 Workflow:
 
@@ -111,39 +186,12 @@ jobs:
           fetch-depth: 0
 
       - id: bump
-        uses: OWNER/version-bump-action@v1
+        uses: jfrz38/auto-version-bump-action@v0
         with:
           bump: ${{ inputs.bump }}
           base-branch: ${{ inputs.base_branch }}
           strategy: gradle-kts
           version-file: mockguard/build.gradle.kts
-```
-
-## npm
-
-For `package.json`, the action reads and updates the `version` field.
-
-If a same-directory `package-lock.json` exists, the action runs:
-
-```bash
-npm version <next-version> --no-git-tag-version --allow-same-version
-```
-
-Example:
-
-```yaml
-- uses: actions/checkout@v4
-  with:
-    ref: ${{ inputs.base_branch }}
-    fetch-depth: 0
-
-- id: bump
-  uses: OWNER/version-bump-action@v1
-  with:
-    bump: ${{ inputs.bump }}
-    base-branch: ${{ inputs.base_branch }}
-    strategy: npm
-    version-file: package.json
 ```
 
 ## Regex
@@ -162,13 +210,32 @@ Example workflow step:
 
 ```yaml
 - id: bump
-  uses: OWNER/version-bump-action@v1
+  uses: jfrz38/auto-version-bump-action@v0
   with:
     bump: minor
     strategy: regex
     version-file: VERSION.txt
     version-pattern: 'releaseVersion=(\d+\.\d+\.\d+)'
     version-replacement: 'releaseVersion={version}'
+```
+
+For example, to update a Rust `Cargo.toml` package version:
+
+```toml
+[package]
+name = "demo"
+version = "1.2.3"
+```
+
+```yaml
+- id: bump
+  uses: jfrz38/auto-version-bump-action@v0
+  with:
+    bump: patch
+    strategy: regex
+    version-file: Cargo.toml
+    version-pattern: '^version\s*=\s*"(\d+\.\d+\.\d+)"'
+    version-replacement: 'version = "{version}"'
 ```
 
 ## Release flow

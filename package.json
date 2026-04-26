@@ -1,6 +1,6 @@
 {
   "name": "version-bump-action",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "GitHub Action that bumps SemVer project versions and opens a pull request.",
   "license": "MIT",
@@ -35,7 +35,7 @@
     "build": "esbuild ./src/main.ts --bundle --platform=node --target=node20 --format=cjs --minify --outfile=dist/index.js",
     "lint": "eslint .",
     "package": "pnpm run build",
-    "test": "vitest run tests/unit",
+    "test": "vitest run tests/unit tests/integration",
     "typecheck": "tsc --noEmit",
     "validate": "pnpm run typecheck && pnpm test && pnpm run build"
   },

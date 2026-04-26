@@ -1,12 +1,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { type ActionConfig } from '../domain/action-config';
+import { Branch } from '../domain/branch';
+import { Commit } from '../domain/commit';
+import { PullRequest } from '../domain/pull-request';
 import { SimpleVersion } from '../domain/simple-version';
+import { Tag } from '../domain/tag';
+import { type VersionStrategy } from '../domain/version-strategy';
 import { assertReleaseDoesNotExist, assertTagDoesNotExist, createGitHubClient, createPullRequest, findOpenPullRequest, getDefaultBranch } from '../github';
-import { checkoutBumpBranch, commitAndPush } from '../git';
+import { checkoutBumpBranch, commitAndPush, getRemoteBranchSha } from '../git';
 import { toGitPath, uniqueValues } from '../path-utils';
-import { createStrategy } from '../infrastructure/strategies';
-import { renderTemplate } from '../templates';
+import { type TemplateRenderService } from './template-renderer';
 
 export interface ActionOutputs {
   branch: string;
@@ -17,46 +21,70 @@ export interface ActionOutputs {
   tag: string;
 }
 
-export async function executeVersionBumpPr(config: ActionConfig, cwd: string): Promise<ActionOutputs> {
+export type VersionStrategyFactory = (cwd: string, config: ActionConfig) => VersionStrategy;
+
+export interface VersionBumpPrUseCaseDependencies {
+  createStrategy: VersionStrategyFactory;
+  renderer: TemplateRenderService;
+}
+
+export class VersionBumpPrUseCase {
+  constructor(private readonly dependencies: VersionBumpPrUseCaseDependencies) {}
+
+  async execute(config: ActionConfig, cwd: string): Promise<ActionOutputs> {
+    return executeVersionBumpPr(config, cwd, this.dependencies.createStrategy, this.dependencies.renderer);
+  }
+}
+
+async function executeVersionBumpPr(
+  config: ActionConfig,
+  cwd: string,
+  createStrategy: VersionStrategyFactory,
+  renderer: TemplateRenderService,
+): Promise<ActionOutputs> {
   const octokit = createGitHubClient(config.githubToken);
   const initialStrategy = createStrategy(cwd, config);
   const currentVersion = SimpleVersion.parse(await initialStrategy.readCurrentVersion());
   const nextVersion = currentVersion.bump(config.bump.value);
   const currentVersionText = currentVersion.toString();
   const nextVersionText = nextVersion.toString();
-  const branch = `${config.branchPrefix}${nextVersionText}`;
-  const tag = `${config.tagPrefix}${nextVersionText}`;
-  const baseBranch = config.baseBranch || getDefaultBranch();
+  const branch = Branch.forVersion(config.branchPrefix, nextVersion);
+  const tag = Tag.forVersion(config.tagPrefix, nextVersion);
+  const baseBranchName = config.baseBranch || getDefaultBranch();
 
-  if (!baseBranch) {
+  if (!baseBranchName) {
     throw new Error('Could not resolve base branch. Provide input "base-branch".');
   }
+  const baseBranch = Branch.fromName(baseBranchName);
 
   if (config.failIfTagExists) {
-    await assertTagDoesNotExist(octokit, tag);
+    await assertTagDoesNotExist(octokit, tag.name);
   }
   if (config.failIfReleaseExists) {
-    await assertReleaseDoesNotExist(octokit, tag);
+    await assertReleaseDoesNotExist(octokit, tag.name);
   }
 
-  const existingPullRequest = await findOpenPullRequest(octokit, baseBranch, branch);
+  const existingPullRequest = await findOpenPullRequest(octokit, baseBranch.name, branch.name);
   if (existingPullRequest) {
     return {
-      branch,
+      branch: branch.name,
       changedFiles: '',
       currentVersion: currentVersionText,
       nextVersion: nextVersionText,
       prUrl: existingPullRequest.url,
-      tag,
+      tag: tag.name,
     };
   }
 
-  await checkoutBumpBranch(baseBranch, branch);
+  const remoteBranchSha = await getRemoteBranchSha(branch.name);
+  branch.assertCanUseRemoteState(remoteBranchSha, config.overwriteExistingBranch);
+
+  await checkoutBumpBranch(baseBranch.name, branch.name);
 
   const strategy = createStrategy(cwd, config);
   const branchCurrentVersion = SimpleVersion.parse(await strategy.readCurrentVersion()).toString();
   if (branchCurrentVersion !== currentVersionText) {
-    throw new Error(`Version changed after checking out ${baseBranch}: expected ${currentVersionText}, found ${branchCurrentVersion}.`);
+    throw new Error(`Version changed after checking out ${baseBranch.name}: expected ${currentVersionText}, found ${branchCurrentVersion}.`);
   }
 
   const beforeContents = await snapshotFiles(cwd, potentialChangedFiles(config.versionFile));
@@ -68,28 +96,34 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string): P
   }
 
   const templateValues = { bump: config.bump.value, currentVersion: currentVersionText, nextVersion: nextVersionText };
-  const commitMessage = renderTemplate(config.commitMessage, templateValues);
-  const prTitle = renderTemplate(config.prTitle, templateValues);
-  const prBody = renderTemplate(config.prBody, templateValues);
-
-  await commitAndPush(branch, changedAfterWrite, commitMessage);
-  const pullRequest = await createPullRequest(octokit, {
+  const commit = Commit.create(renderer.render(config.commitMessage, templateValues));
+  const pullRequestRequest = PullRequest.create(
     baseBranch,
     branch,
-    draft: config.draft,
-    githubToken: config.githubToken,
-    prBody,
-    prTitle,
+    config.draft,
+    renderer.render(config.prTitle, templateValues),
+    renderer.render(config.prBody, templateValues),
     tag,
+  );
+
+  await commitAndPush(branch.name, changedAfterWrite, commit.message, remoteBranchSha);
+  const pullRequest = await createPullRequest(octokit, {
+    baseBranch: pullRequestRequest.baseBranch.name,
+    branch: pullRequestRequest.headBranch.name,
+    draft: pullRequestRequest.draft,
+    githubToken: config.githubToken,
+    prBody: pullRequestRequest.body,
+    prTitle: pullRequestRequest.title,
+    tag: pullRequestRequest.tag.name,
   });
 
   return {
-    branch,
+    branch: branch.name,
     changedFiles: changedAfterWrite.join('\n'),
     currentVersion: currentVersionText,
     nextVersion: nextVersionText,
     prUrl: pullRequest.url,
-    tag,
+    tag: tag.name,
   };
 }
 

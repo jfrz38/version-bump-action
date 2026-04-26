@@ -37,6 +37,10 @@ inputs:
     description: 'GitHub token used for tag/release checks and pull request creation'
     required: false
     default: ${{ github.token }}
+  overwrite-existing-branch:
+    description: 'Overwrite an existing bump branch when no open pull request is found for it'
+    required: false
+    default: 'false'
   commit-message:
     description: 'Commit message template. Supports {version}, {current-version}, {next-version}, and {bump}.'
     required: false

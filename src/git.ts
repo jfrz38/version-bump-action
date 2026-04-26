@@ -5,7 +5,17 @@ export async function checkoutBumpBranch(baseBranch: string, branch: string): Pr
   await git(['checkout', '-B', branch, `origin/${baseBranch}`]);
 }
 
-export async function commitAndPush(branch: string, changedFiles: string[], commitMessage: string): Promise<void> {
+export async function getRemoteBranchSha(branch: string): Promise<string | undefined> {
+  const result = await exec.getExecOutput('git', ['ls-remote', '--heads', 'origin', branch], { ignoreReturnCode: true });
+  if (result.exitCode !== 0) {
+    return undefined;
+  }
+
+  const [sha] = result.stdout.trim().split(/\s+/);
+  return sha || undefined;
+}
+
+export async function commitAndPush(branch: string, changedFiles: string[], commitMessage: string, remoteBranchSha?: string): Promise<void> {
   await git(['config', 'user.name', 'github-actions[bot]']);
   await git(['config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com']);
   await git(['add', ...changedFiles]);
@@ -16,6 +26,11 @@ export async function commitAndPush(branch: string, changedFiles: string[], comm
   }
 
   await git(['commit', '-m', commitMessage]);
+  if (remoteBranchSha) {
+    await git(['push', `--force-with-lease=refs/heads/${branch}:${remoteBranchSha}`, '--set-upstream', 'origin', branch]);
+    return;
+  }
+
   await git(['push', '--set-upstream', 'origin', branch]);
 }
 
