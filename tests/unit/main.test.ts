@@ -61,7 +61,13 @@ describe('main action', () => {
     };
     githubMock.getOctokit.mockReturnValue(octokit);
     execMock.exec.mockResolvedValue(0);
-    execMock.getExecOutput.mockResolvedValue({ stdout: ' M build.gradle.kts\n', stderr: '', exitCode: 0 });
+    execMock.getExecOutput.mockImplementation((_command: string, args: string[]) => {
+      if (args[0] === 'status') {
+        return Promise.resolve({ stdout: ' M build.gradle.kts\n', stderr: '', exitCode: 0 });
+      }
+
+      return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
+    });
 
     coreMock.getInput.mockImplementation((name: string) => {
       const inputs: Record<string, string> = {
@@ -117,6 +123,33 @@ describe('main action', () => {
       }),
     );
     expect(coreMock.setOutput).toHaveBeenCalledWith('next-version', '1.2.4');
+  });
+
+  it('fails before changing files when the remote bump branch already exists without an open pull request', async () => {
+    execMock.getExecOutput.mockImplementation((_command: string, args: string[]) => {
+      if (args[0] === 'status') {
+        return Promise.resolve({ stdout: ' M build.gradle.kts\n', stderr: '', exitCode: 0 });
+      }
+      if (args[0] === 'ls-remote') {
+        return Promise.resolve({
+          stdout: 'abc1234567890abcdef\trefs/heads/chore/bump-version-1.2.4\n',
+          stderr: '',
+          exitCode: 0,
+        });
+      }
+
+      return Promise.resolve({ stdout: '', stderr: '', exitCode: 0 });
+    });
+
+    const { run } = await import('../../src/main');
+
+    await expect(run()).rejects.toThrow(
+      'Branch chore/bump-version-1.2.4 already exists on origin, but no open pull request was found for it.',
+    );
+    expect(fs.readFileSync(path.join(tempDir, 'build.gradle.kts'), 'utf8')).toBe('version = "1.2.3"\n');
+    expect(execMock.exec).not.toHaveBeenCalledWith('git', ['checkout', '-B', 'chore/bump-version-1.2.4', 'origin/develop']);
+    expect(execMock.exec).not.toHaveBeenCalledWith('git', ['commit', '-m', expect.any(String)]);
+    expect(execMock.exec).not.toHaveBeenCalledWith('git', expect.arrayContaining(['push']));
   });
 
   it('returns an existing open pull request without creating a duplicate', async () => {

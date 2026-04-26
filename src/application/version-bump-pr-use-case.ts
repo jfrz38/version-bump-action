@@ -3,7 +3,7 @@ import path from 'node:path';
 import { type ActionConfig } from '../domain/action-config';
 import { SimpleVersion } from '../domain/simple-version';
 import { assertReleaseDoesNotExist, assertTagDoesNotExist, createGitHubClient, createPullRequest, findOpenPullRequest, getDefaultBranch } from '../github';
-import { checkoutBumpBranch, commitAndPush } from '../git';
+import { assertRemoteBranchDoesNotExist, checkoutBumpBranch, commitAndPush } from '../git';
 import { toGitPath, uniqueValues } from '../path-utils';
 import { createStrategy } from '../infrastructure/strategies';
 import { renderTemplate } from '../templates';
@@ -51,6 +51,7 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string): P
     };
   }
 
+  await assertRemoteBranchDoesNotExist(branch);
   await checkoutBumpBranch(baseBranch, branch);
 
   const strategy = createStrategy(cwd, config);
