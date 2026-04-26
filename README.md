@@ -113,6 +113,8 @@ permissions:
   pull-requests: write
 ```
 
+Repository setting required: in **Settings > Actions > General**, enable **Allow GitHub Actions to create and approve pull requests**. Without this setting, the action can push the bump branch but cannot open the pull request.
+
 Use `actions/checkout` with the target base branch and `fetch-depth: 0`.
 
 ## npm
