@@ -2,13 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { type ActionConfig } from '../domain/action-config';
 import { Branch } from '../domain/branch';
+import { Commit } from '../domain/commit';
+import { PullRequest } from '../domain/pull-request';
 import { SimpleVersion } from '../domain/simple-version';
 import { Tag } from '../domain/tag';
 import { type VersionStrategy } from '../domain/version-strategy';
 import { assertReleaseDoesNotExist, assertTagDoesNotExist, createGitHubClient, createPullRequest, findOpenPullRequest, getDefaultBranch } from '../github';
 import { checkoutBumpBranch, commitAndPush, getRemoteBranchSha } from '../git';
 import { toGitPath, uniqueValues } from '../path-utils';
-import { renderTemplate } from '../templates';
+import { type TemplateRenderService } from './template-renderer';
 
 export interface ActionOutputs {
   branch: string;
@@ -21,7 +23,25 @@ export interface ActionOutputs {
 
 export type VersionStrategyFactory = (cwd: string, config: ActionConfig) => VersionStrategy;
 
-export async function executeVersionBumpPr(config: ActionConfig, cwd: string, createStrategy: VersionStrategyFactory): Promise<ActionOutputs> {
+export interface VersionBumpPrUseCaseDependencies {
+  createStrategy: VersionStrategyFactory;
+  renderer: TemplateRenderService;
+}
+
+export class VersionBumpPrUseCase {
+  constructor(private readonly dependencies: VersionBumpPrUseCaseDependencies) {}
+
+  async execute(config: ActionConfig, cwd: string): Promise<ActionOutputs> {
+    return executeVersionBumpPr(config, cwd, this.dependencies.createStrategy, this.dependencies.renderer);
+  }
+}
+
+async function executeVersionBumpPr(
+  config: ActionConfig,
+  cwd: string,
+  createStrategy: VersionStrategyFactory,
+  renderer: TemplateRenderService,
+): Promise<ActionOutputs> {
   const octokit = createGitHubClient(config.githubToken);
   const initialStrategy = createStrategy(cwd, config);
   const currentVersion = SimpleVersion.parse(await initialStrategy.readCurrentVersion());
@@ -75,19 +95,25 @@ export async function executeVersionBumpPr(config: ActionConfig, cwd: string, cr
   }
 
   const templateValues = { bump: config.bump.value, currentVersion: currentVersionText, nextVersion: nextVersionText };
-  const commitMessage = renderTemplate(config.commitMessage, templateValues);
-  const prTitle = renderTemplate(config.prTitle, templateValues);
-  const prBody = renderTemplate(config.prBody, templateValues);
-
-  await commitAndPush(branch.name, changedAfterWrite, commitMessage, remoteBranchSha);
-  const pullRequest = await createPullRequest(octokit, {
+  const commit = Commit.create(renderer.render(config.commitMessage, templateValues));
+  const pullRequestRequest = PullRequest.create(
     baseBranch,
-    branch: branch.name,
-    draft: config.draft,
+    branch,
+    config.draft,
+    renderer.render(config.prTitle, templateValues),
+    renderer.render(config.prBody, templateValues),
+    tag,
+  );
+
+  await commitAndPush(branch.name, changedAfterWrite, commit.message, remoteBranchSha);
+  const pullRequest = await createPullRequest(octokit, {
+    baseBranch: pullRequestRequest.baseBranch,
+    branch: pullRequestRequest.branch.name,
+    draft: pullRequestRequest.draft,
     githubToken: config.githubToken,
-    prBody,
-    prTitle,
-    tag: tag.name,
+    prBody: pullRequestRequest.body,
+    prTitle: pullRequestRequest.title,
+    tag: pullRequestRequest.tag.name,
   });
 
   return {
