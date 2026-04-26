@@ -2,10 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { type ActionConfig } from '../domain/action-config';
 import { SimpleVersion } from '../domain/simple-version';
+import { type VersionStrategy } from '../domain/version-strategy';
 import { assertReleaseDoesNotExist, assertTagDoesNotExist, createGitHubClient, createPullRequest, findOpenPullRequest, getDefaultBranch } from '../github';
 import { assertRemoteBranchDoesNotExist, checkoutBumpBranch, commitAndPush } from '../git';
 import { toGitPath, uniqueValues } from '../path-utils';
-import { createStrategy } from '../infrastructure/strategies';
 import { renderTemplate } from '../templates';
 
 export interface ActionOutputs {
@@ -17,7 +17,9 @@ export interface ActionOutputs {
   tag: string;
 }
 
-export async function executeVersionBumpPr(config: ActionConfig, cwd: string): Promise<ActionOutputs> {
+export type VersionStrategyFactory = (cwd: string, config: ActionConfig) => VersionStrategy;
+
+export async function executeVersionBumpPr(config: ActionConfig, cwd: string, createStrategy: VersionStrategyFactory): Promise<ActionOutputs> {
   const octokit = createGitHubClient(config.githubToken);
   const initialStrategy = createStrategy(cwd, config);
   const currentVersion = SimpleVersion.parse(await initialStrategy.readCurrentVersion());
